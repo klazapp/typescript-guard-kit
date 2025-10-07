@@ -1,0 +1,53 @@
+{
+  "name": "@klazapp/typescript-guard-kit",
+  "version": "0.1.0",
+  "description": "Zero-dependency runtime guards and safe parsers for TypeScript: require(), toDate.orNull(), parseArray.number(), etc.",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./extra": {
+      "types": "./dist/extra/index.d.ts",
+      "import": "./dist/extra/index.js",
+      "require": "./dist/extra/index.cjs"
+    }
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch --dts",
+    "clean": "rimraf dist"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "guard",
+    "validation",
+    "runtime-validation",
+    "input-validation",
+    "parsing",
+    "typescript",
+    "null-safety",
+    "error-handling",
+    "utilities"
+  ],
+  "author": "Klazapp",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^24.7.0",
+    "rimraf": "^5.0.10",
+    "tsup": "^8.1.0",
+    "typescript": "^5.6.3"
+  }
+}
