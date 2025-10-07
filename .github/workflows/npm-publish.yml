@@ -1,0 +1,100 @@
+name: Bump & Publish to npm
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Semver bump (patch|minor|major)"
+        required: false
+        default: "patch"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+          scope: "@klazapp"
+          cache: "npm"
+
+      - name: Force npmjs registry for scope
+        run: |
+          printf "registry=https://registry.npmjs.org/\n@klazapp:registry=https://registry.npmjs.org/\n" > .npmrc
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Resolve bump type
+        id: bump
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.bump }}" ]; then
+            echo "value=${{ github.event.inputs.bump }}" >> $GITHUB_OUTPUT
+          else
+            echo "value=patch" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Should skip? (release commit)
+        id: skipcheck
+        run: |
+          MSG="$(git log -1 --pretty=%B || true)"
+          if echo "$MSG" | grep -qiE '\[skip ci\]|chore\(release\)'; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure git user
+        if: steps.skipcheck.outputs.skip == 'false'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version (npm version)
+        if: steps.skipcheck.outputs.skip == 'false'
+        run: |
+          echo "Bumping: ${{ steps.bump.outputs.value }}"
+          npm version "${{ steps.bump.outputs.value }}" -m "chore(release): %s [skip ci]"
+
+      - name: Build (core + extra)
+        run: npm run build
+
+      - name: Push commit & tags
+        if: steps.skipcheck.outputs.skip == 'false'
+        run: git push --follow-tags
+
+      - name: Skip if version already on npm
+        id: exists
+        run: |
+          PKG=$(node -p "require('./package.json').name")
+          VER=$(node -p "require('./package.json').version")
+          if npm view "$PKG@$VER" version >/dev/null 2>&1; then
+            echo "present=true" >> $GITHUB_OUTPUT
+          else
+            echo "present=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish to npm
+        if: steps.exists.outputs.present == 'false'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          # Use provenance if your npm supports it (Node 20 runner does)
+          npm publish --access public --provenance || npm publish --access public
